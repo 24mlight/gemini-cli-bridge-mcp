@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from mcp.server.fastmcp import FastMCP
+import shutil
+import subprocess
 
 
 DEFAULT_MODEL = os.getenv("GEMINI_DEFAULT_MODEL", "gemini-3-pro-preview")
@@ -38,17 +40,18 @@ def _log(msg: str):
 def _find_cli_candidates() -> List[List[str]]:
     candidates: List[List[str]] = []
 
+    # helper to add if exists
+    def add_cmd(cmd: str):
+        if Path(cmd).exists():
+            candidates.append([cmd])
+
     explicit = os.getenv("GEMINI_BIN")
     if explicit:
         candidates.append([explicit])
 
-    cwd = Path.cwd()
-    local = cwd / "node_modules" / ".bin" / ("gemini.cmd" if os.name == "nt" else "gemini")
-    if local.exists():
-        candidates.append([str(local)])
-
-    # PATH search
     exe_names = ["gemini.cmd", "gemini.exe", "gemini.bat", "gemini"]
+
+    # PATH search (prefer system/global installs)
     for p in os.environ.get("PATH", "").split(os.pathsep):
         for name in exe_names:
             cand = Path(p) / name
@@ -69,11 +72,57 @@ def _find_cli_candidates() -> List[List[str]]:
             if cyg.exists():
                 candidates.append([str(cyg)])
 
+    # npm bin / npm prefix -g derived paths
+    def _npm_bin():
+        try:
+            out = subprocess.check_output(["npm", "bin", "-g"], text=True, timeout=3).strip()
+            return out
+        except Exception:
+            return None
+
+    def _npm_prefix():
+        try:
+            out = subprocess.check_output(["npm", "prefix", "-g"], text=True, timeout=3).strip()
+            return out
+        except Exception:
+            return None
+
+    npm_bin = _npm_bin()
+    if npm_bin:
+        for name in exe_names:
+            add_cmd(str(Path(npm_bin) / name))
+
+    npm_prefix = _npm_prefix()
+    if npm_prefix:
+        # npm global bin on win is usually prefix itself
+        for name in exe_names:
+            add_cmd(str(Path(npm_prefix) / name))
+        add_cmd(str(Path(npm_prefix) / "node_modules" / ".bin" / "gemini"))
+        add_cmd(str(Path(npm_prefix) / "node_modules" / ".bin" / "gemini.cmd"))
+
+    # shutil.which as additional quick check (may duplicate)
+    which = shutil.which("gemini")
+    if which:
+        add_cmd(which)
+
+    # project-local node_modules/.bin (lowest priority)
+    cwd = Path.cwd()
+    local = cwd / "node_modules" / ".bin" / ("gemini.cmd" if os.name == "nt" else "gemini")
+    if local.exists():
+        candidates.append([str(local)])
+
     # npx fallbacks (auto install if needed)
     candidates.append(["npx", "-y", "gemini"])
     candidates.append(["npx", "-y", "@google/gemini-cli"])
     candidates.append(["npx", "-y", "@google/generative-ai-cli"])
-    return candidates
+    # Push node_modules/.bin to the end to prefer global installs
+    def score(cmd: List[str]) -> int:
+        path0 = cmd[0]
+        return 1 if ("node_modules" in path0 and ".bin" in path0) else 0
+
+    sorted_candidates = sorted(candidates, key=score)
+    # preserve order among same score (stable sort)
+    return sorted_candidates
 
 
 async def _run_cli(prompt: str, model: str, sandbox: bool, on_progress=None) -> str:
@@ -91,6 +140,7 @@ async def _run_cli(prompt: str, model: str, sandbox: bool, on_progress=None) -> 
             _log(f"Trying: {' '.join(cmd)}")
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -218,6 +268,26 @@ def load_chunks(cache_key: str) -> Optional[List[List[Dict[str, str]]]]:
 
 
 server = FastMCP("gemini-cli-python")
+
+@server.tool()
+async def diagnose_gemini_paths() -> str:
+    """
+    Report Gemini CLI candidate paths and whether they exist.
+    """
+    lines = []
+    lines.append(f"PWD: {Path.cwd()}")
+    lines.append(f"PATH: {os.environ.get('PATH','')}")
+    lines.append(f"GEMINI_BIN: {os.environ.get('GEMINI_BIN','')}")
+    candidates = _find_cli_candidates()
+    seen = []
+    for c in candidates:
+        cmd = " ".join(c)
+        if cmd in seen:
+            continue
+        seen.append(cmd)
+        exists = Path(c[0]).exists() if len(c)==1 and not c[0].startswith("npx") else "n/a"
+        lines.append(f"- {cmd} | exists={exists}")
+    return "\n".join(lines)
 
 
 @server.tool()
