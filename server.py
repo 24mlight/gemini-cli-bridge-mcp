@@ -24,7 +24,7 @@ KEEPALIVE_INTERVAL_MS = 25_000
 QUOTA_STRING = "Quota exceeded for quota metric 'Gemini 2.5 Pro Requests'"
 MODEL_PRO = "gemini-2.5-pro"
 MODEL_FLASH = "gemini-2.5-flash"
-CACHE_TTL = 10 * 60  # seconds
+CACHE_TTL = 30 * 60  # seconds (extended for repeated prompts)
 CACHE_LIMIT = 50
 CACHE_DIR = Path(tempfile.gettempdir()) / "gemini-mcp-chunks"
 
@@ -47,12 +47,19 @@ def _run_gemini(prompt: str, model: Optional[str], sandbox: bool) -> str:
     if sandbox:
         args.append("-s")
     args += ["-p", prompt]
+
+    # Minimal env to reduce startup overhead and avoid color noise
+    env = os.environ.copy()
+    env.setdefault("NO_COLOR", "1")
+    # If user already has GEMINI_API_KEY etc., we keep them; we only add flags that speed/clean output.
+
     result = subprocess.run(
         args,
         text=True,
         capture_output=True,
         check=False,
         encoding="utf-8",
+        env=env,
     )
     if result.returncode != 0:
         stderr = result.stderr.strip()
