@@ -20,7 +20,6 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("gemini-cli-mcp-python")
 
 # -------- constants --------
-KEEPALIVE_INTERVAL_MS = 25_000
 QUOTA_STRING = "Quota exceeded for quota metric 'Gemini 2.5 Pro Requests'"
 MODEL_PRO = "gemini-2.5-pro"
 MODEL_FLASH = "gemini-2.5-flash"
@@ -298,12 +297,15 @@ def ping(message: str = "pong") -> str:
 @mcp.tool()
 def help() -> str:
     gemini = _ensure_gemini()
+    env = os.environ.copy()
+    env.setdefault("NO_COLOR", "1")
     result = subprocess.run(
         [gemini, "-help"],
         text=True,
         capture_output=True,
         check=False,
         encoding="utf-8",
+        env=env,
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "gemini -help failed")
