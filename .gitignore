@@ -8,7 +8,11 @@ dist/
 .vscode/
 .idea/
 .npmignore
-
+.venv/
+__pycache__/
+*.py[cod]
+.cache/
+.pytest_cache/
 
 # Docs Site
 docs/.vitepress/cache/

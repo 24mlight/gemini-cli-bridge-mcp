@@ -60,6 +60,31 @@ def _run_gemini(prompt: str, model: Optional[str], sandbox: bool) -> str:
     return result.stdout.strip()
 
 
+def _run_with_preferred_model(prompt: str, sandbox: bool, requested_model: Optional[str]) -> str:
+    """
+    Always try gemini-3-pro-preview first.
+    If it fails (e.g., account/model not available), fall back to previous behavior:
+    - use requested_model (if provided) else MODEL_PRO
+    - if quota exceeded and not already flash, retry MODEL_FLASH
+    """
+    primary_model = "gemini-3-pro-preview"
+    fallback_model = requested_model or MODEL_PRO
+
+    try:
+        return _run_gemini(prompt, primary_model, sandbox)
+    except RuntimeError as primary_error:
+        # Attempt previous behavior
+        try:
+            result = _run_gemini(prompt, fallback_model, sandbox)
+            return result
+        except RuntimeError as e:
+            msg = str(e)
+            if QUOTA_STRING in msg and fallback_model != MODEL_FLASH:
+                return _run_gemini(prompt, MODEL_FLASH, sandbox)
+            # If all attempts fail, raise the latest error
+            raise e
+
+
 # -------- change-mode parsing/chunking --------
 @dataclass
 class Edit:
@@ -299,14 +324,7 @@ def ask_gemini(
         raise RuntimeError("Please provide a prompt.")
 
     effective_prompt = build_change_mode_prompt(prompt) if changeMode else prompt
-    try:
-        result = _run_gemini(effective_prompt, model, sandbox)
-    except RuntimeError as e:
-        msg = str(e)
-        if QUOTA_STRING in msg and model != MODEL_FLASH:
-            result = _run_gemini(effective_prompt, MODEL_FLASH, sandbox)
-        else:
-            raise
+    result = _run_with_preferred_model(effective_prompt, sandbox, model)
 
     if not changeMode:
         return f"Gemini response:\n{result}"
@@ -345,7 +363,7 @@ def brainstorm(
         ideaCount,
         includeAnalysis,
     )
-    return _run_gemini(p, model, False)
+    return _run_with_preferred_model(p, False, model)
 
 
 @mcp.tool()
