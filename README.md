@@ -30,8 +30,8 @@ This is a simple Model Context Protocol (MCP) server that allows AI assistants t
 
 Before using this tool, ensure you have:
 
-1. **[Node.js](https://nodejs.org/)** (v16.0.0 or higher)
-2. **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured
+1. **[Node.js](https://nodejs.org/)** (v16.0.0 or higher) or **Python 3.11+ with [uv](https://github.com/astral-sh/uv)** if you prefer the Python server.
+2. **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured (we auto-discover it via PATH, npm global bins, roaming dirs, `npm bin -g`, `npx` fallback; no hard-coded paths needed).
 
 
 ### One-Line Setup
@@ -39,6 +39,33 @@ Before using this tool, ensure you have:
 ```bash
 claude mcp add gemini-cli -- npx -y gemini-mcp-tool
 ```
+
+### Local Python/uv Setup (alternative to npx)
+
+```bash
+uv venv
+uv pip install 'mcp[cli]>=1.22.0'
+```
+Then register the MCP server with:
+```json
+{
+  "mcpServers": {
+    "gemini-cli-py": {
+      "transport": "stdio",
+      "command": "uv",
+      "args": ["--directory", "D:\\\\github\\\\gemini-cli-bridge-mcp", "run", "python", "server.py"],
+      "workingDirectory": "D:\\\\github\\\\gemini-cli-bridge-mcp",
+      "env": {
+        "GEMINI_DEFAULT_MODEL": "gemini-3-pro-preview",
+        "GEMINI_FALLBACK_MODEL": "gemini-2.5-pro",
+        "GEMINI_FLASH_MODEL": "gemini-2.5-flash",
+        "GEMINI_CACHE_TTL_MS": "600000"
+      }
+    }
+  }
+}
+```
+If PATH is restricted, point `command` to the absolute `uv.exe`. The server auto-finds `gemini` (PATH, Roaming/npm, npm bin -g, node_modules/.bin, npx).
 
 ### Verify Installation
 
@@ -104,6 +131,14 @@ If you installed globally, use this configuration instead:
   - **Linux**: `~/.config/claude/claude_desktop_config.json`
 
 After updating the configuration, restart your terminal session.
+
+### Tools
+- `ask-gemini`, `brainstorm`, `fetch-chunk`, `ping`, `help`, `timeout-test`
+- `diagnose_gemini_paths` (new): prints the candidate CLI paths and PATH for quick troubleshooting.
+
+### Troubleshooting
+- If `ask-gemini` hangs: likely CLI waiting on stdio. The Python server now detaches CLI stdin (`DEVNULL`); ensure Gemini CLI itself returns quickly in your shell.
+- If CLI not found: run `diagnose_gemini_paths` via MCP to see discovered candidates. Add `GEMINI_BIN` only if absolutely necessary.
 
 ## Example Workflow
 
