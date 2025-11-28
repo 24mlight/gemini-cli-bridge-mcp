@@ -42,7 +42,7 @@ Then register the MCP server with (Windows example, adjust paths as needed):
   "mcpServers": {
     "gemini-cli-py": {
       "transport": "stdio",
-      "command": "uv",
+      "command": "D:\\python3.12.8\\Scripts\\uv.exe",
       "args": ["--directory", "D:\\\\github\\\\gemini-cli-bridge-mcp", "run", "python", "server.py"],
       "workingDirectory": "D:\\\\github\\\\gemini-cli-bridge-mcp",
       "env": {

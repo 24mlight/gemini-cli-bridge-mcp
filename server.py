@@ -27,6 +27,8 @@ CLI_QUOTA_MSG = "Quota exceeded for quota metric"
 CACHE_DIR = Path(tempfile.gettempdir()) / "gemini-mcp-py-chunks"
 CACHE_TTL = int(os.getenv("GEMINI_CACHE_TTL_MS", str(10 * 60 * 1000)))  # 10 min
 CHUNK_SIZE = 5  # edits per chunk
+# in-process cache for the resolved CLI command; saves repeated PATH probing
+_CACHED_CLI: Optional[List[str]] = None
 
 
 def _now_ms() -> int:
@@ -133,8 +135,14 @@ async def _run_cli(prompt: str, model: str, sandbox: bool, on_progress=None) -> 
         args.append("-s")
     args += ["-p", prompt if prompt.startswith('"') else f'"{prompt}"']
 
+    global _CACHED_CLI
     last_error = None
-    for base in _find_cli_candidates():
+    candidates = []
+    if _CACHED_CLI:
+        candidates.append(_CACHED_CLI)
+    candidates.extend(_find_cli_candidates())
+
+    for base in candidates:
         cmd = base + args
         try:
             _log(f"Trying: {' '.join(cmd)}")
@@ -164,6 +172,10 @@ async def _run_cli(prompt: str, model: str, sandbox: bool, on_progress=None) -> 
         code = await proc.wait()
 
         if code == 0:
+            # cache the resolved CLI for future calls and export GEMINI_BIN so child processes reuse it
+            _CACHED_CLI = base
+            if len(base) == 1 and not base[0].startswith("npx"):
+                os.environ["GEMINI_BIN"] = base[0]
             return "".join(stdout_chunks).strip()
         else:
             last_error = RuntimeError(f"cmd={' '.join(cmd)} exit={code} stderr={stderr}")
