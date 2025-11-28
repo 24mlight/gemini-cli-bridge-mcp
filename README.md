@@ -30,23 +30,17 @@ This is a simple Model Context Protocol (MCP) server that allows AI assistants t
 
 Before using this tool, ensure you have:
 
-1. **[Node.js](https://nodejs.org/)** (v16.0.0 or higher) or **Python 3.11+ with [uv](https://github.com/astral-sh/uv)** if you prefer the Python server.
-2. **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured (we auto-discover it via PATH, npm global bins, roaming dirs, `npm bin -g`, `npx` fallback; no hard-coded paths needed).
+1. **Python 3.11+** with **[uv](https://github.com/astral-sh/uv)**
+2. **[Google Gemini CLI](https://github.com/google-gemini/gemini-cli)** installed and configured (the server auto-discovers it via PATH, roaming/npm, `npm bin -g`, node_modules/.bin, and `npx` fallback; no hard-coded paths needed).
 
 
-### One-Line Setup
-
-```bash
-claude mcp add gemini-cli -- npx -y gemini-mcp-tool
-```
-
-### Local Python/uv Setup (alternative to npx)
+### Setup (Python + uv)
 
 ```bash
 uv venv
 uv pip install 'mcp[cli]>=1.22.0'
 ```
-Then register the MCP server with:
+Then register the MCP server with (Windows example, adjust paths as needed):
 ```json
 {
   "mcpServers": {
@@ -73,64 +67,9 @@ Type `/mcp` inside Claude Code to verify the gemini-cli MCP is active.
 
 ---
 
-### Alternative: Import from Claude Desktop
-
-If you already have it configured in Claude Desktop:
-
-1. Add to your Claude Desktop config:
-```json
-"gemini-cli": {
-  "command": "npx",
-  "args": ["-y", "gemini-mcp-tool"]
-}
-```
-
-2. Import to Claude Code:
-```bash
-claude mcp add-from-claude-desktop
-```
-
 ## Configuration
 
-Register the MCP server with your MCP client:
-
-### For NPX Usage (Recommended)
-
-Add this configuration to your Claude Desktop config file:
-
-```json
-{
-  "mcpServers": {
-    "gemini-cli": {
-      "command": "npx",
-      "args": ["-y", "gemini-mcp-tool"]
-    }
-  }
-}
-```
-
-### For Global Installation
-
-If you installed globally, use this configuration instead:
-
-```json
-{
-  "mcpServers": {
-    "gemini-cli": {
-      "command": "gemini-mcp"
-    }
-  }
-}
-```
-
-**Configuration File Locations:**
-
-- **Claude Desktop**:
-  - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-  - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-  - **Linux**: `~/.config/claude/claude_desktop_config.json`
-
-After updating the configuration, restart your terminal session.
+Place the JSON above in your MCP client configuration (Claude Desktop/Code). Update paths for your system. After editing, restart the client or reload MCP.
 
 ### Tools
 - `ask-gemini`, `brainstorm`, `fetch-chunk`, `ping`, `help`, `timeout-test`
